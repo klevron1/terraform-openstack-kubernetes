@@ -65,23 +65,11 @@ data "openstack_compute_flavor_v2" "s1-2" {
   name = "s1-2"
 }
 
-#resource "openstack_networking_port_v2" "controller_ports" {
-#  count              = 3
-#  name               = "controller_port_${count.index+1}"
-#  network_id         = "${openstack_networking_network_v2.kubernetes-the-hard-way.id}"
-#  security_group_ids = ["${openstack_compute_secgroup_v2.kubernetes-the-hard-way-allow-external.id}"]
-#  fixed_ip {
-#    subnet_id        =  "${openstack_networking_subnet_v2.kubernetes.id}"
-#    ip_address       = "10.240.0.1${count.index+1}"
-#  }
-#}
-
 resource "openstack_compute_instance_v2" "controllers" {
   count           = 3
   name            = "controller-${count.index+1}"
   image_id        = "${data.openstack_images_image_v2.ubuntu_18_04.id}"
   flavor_id       = "${data.openstack_compute_flavor_v2.s1-2.id}"
-  #key_pair        = "vagrant-keypair"
   key_pair        = "${openstack_compute_keypair_v2.kubernetes-the-hard-way-keypair.name}"
   security_groups = ["${openstack_compute_secgroup_v2.kubernetes-the-hard-way-allow-external.name}"]
 
@@ -91,8 +79,6 @@ resource "openstack_compute_instance_v2" "controllers" {
 
   network {
     name = "${openstack_networking_network_v2.kubernetes-the-hard-way.name}"
-  #  port = "${openstack_networking_port_v2.controller_ports.*.id[count.index]}"
-  # "${lookup(var.instance_ips, count.index)}"
     fixed_ip_v4 = "10.240.0.1${count.index+1}"
   }
 
@@ -130,7 +116,6 @@ resource "openstack_compute_instance_v2" "workers" {
   name            = "worker-${count.index+1}"
   image_id        = "${data.openstack_images_image_v2.ubuntu_18_04.id}"
   flavor_id       = "${data.openstack_compute_flavor_v2.s1-2.id}"
-  #key_pair        = "vagrant-keypair"
   key_pair        = "${openstack_compute_keypair_v2.kubernetes-the-hard-way-keypair.name}"
   security_groups = ["${openstack_compute_secgroup_v2.kubernetes-the-hard-way-allow-external.name}"]
 
