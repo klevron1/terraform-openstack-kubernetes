@@ -12,9 +12,16 @@ variable "ssh_user" {
   default = "ubuntu"
 }
 
+resource "null_resource" "generate-sshkey" {
+    provisioner "local-exec" {
+        command = "yes y | ssh-keygen -b 4096 -t rsa -C 'kubernetes_the_hard_way' -N '' -f ${var.private_key}"
+    }
+}
+
 resource "openstack_compute_keypair_v2" "kubernetes-the-hard-way-keypair" {
   name       = "kubernetes-the-hard-way-keypair"
   public_key = "${file(var.public_key)}"
+  depends_on = ["null_resource.generate-sshkey"]
 }
 
 resource "openstack_networking_network_v2" "kubernetes-the-hard-way" {
@@ -62,12 +69,12 @@ data "openstack_images_image_v2" "ubuntu_18_04" {
 }
 
 data "openstack_compute_flavor_v2" "s1-2" {
-  name = "s1-2"
+  name = "s1-4"
 }
 
 resource "openstack_compute_instance_v2" "controllers" {
   count           = 3
-  name            = "controller-${count.index+1}"
+  name            = "controller-${count.index}"
   image_id        = "${data.openstack_images_image_v2.ubuntu_18_04.id}"
   flavor_id       = "${data.openstack_compute_flavor_v2.s1-2.id}"
   key_pair        = "${openstack_compute_keypair_v2.kubernetes-the-hard-way-keypair.name}"
@@ -79,7 +86,7 @@ resource "openstack_compute_instance_v2" "controllers" {
 
   network {
     name = "${openstack_networking_network_v2.kubernetes-the-hard-way.name}"
-    fixed_ip_v4 = "10.240.0.1${count.index+1}"
+    fixed_ip_v4 = "10.240.0.1${count.index}"
   }
 
   metadata {
@@ -87,8 +94,19 @@ resource "openstack_compute_instance_v2" "controllers" {
   }
 
   provisioner "file" {
-    source      = "files/controller-${count.index+1}_01-ens4.yaml"
+    source      = "files/controller-${count.index}_01-ens4.yaml"
     destination = "/tmp/01-ens4.yaml"
+
+    connection {
+      type        = "ssh"
+      user        = "${var.ssh_user}"
+      private_key = "${file(var.private_key)}"
+    }
+  }
+
+  provisioner "file" {
+    source      = "${var.public_key}"
+    destination = "/tmp/authorized_keys"
 
     connection {
       type        = "ssh"
@@ -101,6 +119,8 @@ resource "openstack_compute_instance_v2" "controllers" {
     inline = [
       "sudo mv /tmp/01-ens4.yaml /etc/netplan/01-ens4.yaml",
       "sudo netplan apply",
+      "sudo mv /tmp/authorized_keys /root/.ssh/authorized_keys",
+      "sudo chmod 600 /root/.ssh/authorized_keys",
     ]
     connection {
       type        = "ssh"
@@ -113,7 +133,7 @@ resource "openstack_compute_instance_v2" "controllers" {
 
 resource "openstack_compute_instance_v2" "workers" {
   count           = 3
-  name            = "worker-${count.index+1}"
+  name            = "worker-${count.index}"
   image_id        = "${data.openstack_images_image_v2.ubuntu_18_04.id}"
   flavor_id       = "${data.openstack_compute_flavor_v2.s1-2.id}"
   key_pair        = "${openstack_compute_keypair_v2.kubernetes-the-hard-way-keypair.name}"
@@ -125,7 +145,7 @@ resource "openstack_compute_instance_v2" "workers" {
 
   network {
     name = "${openstack_networking_network_v2.kubernetes-the-hard-way.name}"
-    fixed_ip_v4 = "10.240.0.2${count.index+1}"
+    fixed_ip_v4 = "10.240.0.2${count.index}"
   }
 
   metadata {
@@ -133,7 +153,7 @@ resource "openstack_compute_instance_v2" "workers" {
   }
 
   provisioner "file" {
-    source      = "files/worker-${count.index+1}_01-ens4.yaml"
+    source      = "files/worker-${count.index}_01-ens4.yaml"
     destination = "/tmp/01-ens4.yaml"
 
     connection {
@@ -156,3 +176,116 @@ resource "openstack_compute_instance_v2" "workers" {
   }
 
 }
+
+resource "openstack_compute_instance_v2" "haproxy" {
+  name            = "haproxy"
+  image_id        = "${data.openstack_images_image_v2.ubuntu_18_04.id}"
+  flavor_id       = "${data.openstack_compute_flavor_v2.s1-2.id}"
+  key_pair        = "${openstack_compute_keypair_v2.kubernetes-the-hard-way-keypair.name}"
+  security_groups = ["${openstack_compute_secgroup_v2.kubernetes-the-hard-way-allow-external.name}"]
+
+  network {
+    name = "Ext-Net",
+  }
+
+  network {
+    name = "${openstack_networking_network_v2.kubernetes-the-hard-way.name}"
+    fixed_ip_v4 = "10.240.0.9"
+  }
+
+  metadata {
+    kubernetes-the-hard-way = "haproxy"
+  }
+
+  provisioner "file" {
+    source      = "files/haproxy-ens4.yaml"
+    destination = "/tmp/01-ens4.yaml"
+
+    connection {
+      type        = "ssh"
+      user        = "${var.ssh_user}"
+      private_key = "${file(var.private_key)}"
+    }
+  }
+
+  provisioner "file" {
+    source      = "scripts/openrc.sh"
+    destination = "/tmp/openrc.sh"
+
+    connection {
+      type        = "ssh"
+      user        = "${var.ssh_user}"
+      private_key = "${file(var.private_key)}"
+    }
+  }
+
+  provisioner "file" {
+    source      = "scripts/update_haproxy_conf.sh"
+    destination = "/tmp/update_haproxy_conf.sh"
+
+    connection {
+      type        = "ssh"
+      user        = "${var.ssh_user}"
+      private_key = "${file(var.private_key)}"
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mv /tmp/01-ens4.yaml /etc/netplan/01-ens4.yaml",
+      "sudo netplan apply",
+      "sudo apt-get install haproxy -y",
+    ]
+    connection {
+      type        = "ssh"
+      user        = "${var.ssh_user}"
+      private_key = "${file(var.private_key)}"
+    }
+  }
+
+  provisioner "file" {
+    source      = "files/haproxy.cfg"
+    destination = "/tmp/haproxy.cfg"
+
+    connection {
+      type        = "ssh"
+      user        = "${var.ssh_user}"
+      private_key = "${file(var.private_key)}"
+    }
+  }  
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo chmod +x /tmp/update_haproxy_conf.sh",
+      "sudo /tmp/update_haproxy_conf.sh",
+    ]
+    connection {
+      type        = "ssh"
+      user        = "${var.ssh_user}"
+      private_key = "${file(var.private_key)}"
+    }
+  }
+}
+
+resource "null_resource" "create_hosts_entries" {
+    provisioner "local-exec" {
+        command = "scripts/generate_hosts.sh"
+    }
+    depends_on = ["openstack_compute_instance_v2.workers", "openstack_compute_instance_v2.controllers"]
+}
+
+resource "null_resource" "create_certs" {
+    provisioner "local-exec" {
+        command = "scripts/create_certs.sh"
+    }
+    depends_on = ["null_resource.create_hosts_entries"]
+}
+
+resource "null_resource" "scp_certs" {
+    provisioner "local-exec" {
+        command = "scripts/scp_certs.sh"
+    }
+    depends_on = ["null_resource.create_certs"]
+}
+
+

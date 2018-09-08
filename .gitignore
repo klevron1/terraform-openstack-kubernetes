@@ -1,3 +1,5 @@
 .terraform/
+certificates/
+scripts/openrc.sh
 terraform.tfstate.backup
 terraform.tfstate

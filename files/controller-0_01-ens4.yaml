@@ -7,6 +7,6 @@ network:
    ens4:
      dhcp4: no
      dhcp6: no
-     addresses: [10.240.0.23/24]
+     addresses: [10.240.0.10/24]
      nameservers:
        addresses: [8.8.8.8,8.8.4.4]
