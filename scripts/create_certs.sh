@@ -1,6 +1,7 @@
 #!/bin/bash
 
-cd certificates/
+mkdir certificates
+cd certificates || exit 1
 rm -rf *.json
 rm -rf *.pem
 rm -rf *.csr

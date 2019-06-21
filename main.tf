@@ -1,11 +1,11 @@
 provider "openstack" {}
 
 variable "private_key" {
-  default = "/root/.ssh/id_rsa-kubernetes_the_hard_way"
+  default = "~/.ssh/id_rsa-kubernetes_the_hard_way"
 }
 
 variable "public_key" {
-  default = "/root/.ssh/id_rsa-kubernetes_the_hard_way.pub"
+  default = "~/.ssh/id_rsa-kubernetes_the_hard_way.pub"
 }
 
 variable "ssh_user" {
@@ -81,7 +81,7 @@ resource "openstack_compute_instance_v2" "controllers" {
   security_groups = ["${openstack_compute_secgroup_v2.kubernetes-the-hard-way-allow-external.name}"]
 
   network {
-    name = "Ext-Net",
+    name = "Ext-Net"
   }
 
   network {
@@ -89,7 +89,7 @@ resource "openstack_compute_instance_v2" "controllers" {
     fixed_ip_v4 = "10.240.0.1${count.index}"
   }
 
-  metadata {
+  metadata = {
     kubernetes-the-hard-way = "controller"
   }
 
@@ -98,6 +98,7 @@ resource "openstack_compute_instance_v2" "controllers" {
     destination = "/tmp/01-ens4.yaml"
 
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
@@ -109,6 +110,7 @@ resource "openstack_compute_instance_v2" "controllers" {
     destination = "/tmp/authorized_keys"
 
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
@@ -121,8 +123,11 @@ resource "openstack_compute_instance_v2" "controllers" {
       "sudo netplan apply",
       "sudo mv /tmp/authorized_keys /root/.ssh/authorized_keys",
       "sudo chmod 600 /root/.ssh/authorized_keys",
+      "sudo apt-get update",
+      "sudo apt-get upgrade -y"
     ]
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
@@ -140,7 +145,7 @@ resource "openstack_compute_instance_v2" "workers" {
   security_groups = ["${openstack_compute_secgroup_v2.kubernetes-the-hard-way-allow-external.name}"]
 
   network {
-    name = "Ext-Net",
+    name = "Ext-Net"
   }
 
   network {
@@ -148,7 +153,7 @@ resource "openstack_compute_instance_v2" "workers" {
     fixed_ip_v4 = "10.240.0.2${count.index}"
   }
 
-  metadata {
+  metadata = {
     kubernetes-the-hard-way = "worker"
   }
 
@@ -157,6 +162,7 @@ resource "openstack_compute_instance_v2" "workers" {
     destination = "/tmp/01-ens4.yaml"
 
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
@@ -167,8 +173,11 @@ resource "openstack_compute_instance_v2" "workers" {
     inline = [
       "sudo mv /tmp/01-ens4.yaml /etc/netplan/01-ens4.yaml",
       "sudo netplan apply",
+      "sudo apt-get update",
+      "sudo apt-get upgrade -y"
     ]
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
@@ -185,7 +194,7 @@ resource "openstack_compute_instance_v2" "haproxy" {
   security_groups = ["${openstack_compute_secgroup_v2.kubernetes-the-hard-way-allow-external.name}"]
 
   network {
-    name = "Ext-Net",
+    name = "Ext-Net"
   }
 
   network {
@@ -193,7 +202,7 @@ resource "openstack_compute_instance_v2" "haproxy" {
     fixed_ip_v4 = "10.240.0.9"
   }
 
-  metadata {
+  metadata = {
     kubernetes-the-hard-way = "haproxy"
   }
 
@@ -202,6 +211,7 @@ resource "openstack_compute_instance_v2" "haproxy" {
     destination = "/tmp/01-ens4.yaml"
 
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
@@ -213,6 +223,7 @@ resource "openstack_compute_instance_v2" "haproxy" {
     destination = "/tmp/openrc.sh"
 
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
@@ -224,6 +235,7 @@ resource "openstack_compute_instance_v2" "haproxy" {
     destination = "/tmp/update_haproxy_conf.sh"
 
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
@@ -235,8 +247,11 @@ resource "openstack_compute_instance_v2" "haproxy" {
       "sudo mv /tmp/01-ens4.yaml /etc/netplan/01-ens4.yaml",
       "sudo netplan apply",
       "sudo apt-get install haproxy -y",
+      "sudo apt-get update",
+      "sudo apt-get upgrade -y"
     ]
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
@@ -248,11 +263,12 @@ resource "openstack_compute_instance_v2" "haproxy" {
     destination = "/tmp/haproxy.cfg"
 
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"
     }
-  }  
+  }
 
   provisioner "remote-exec" {
     inline = [
@@ -260,6 +276,7 @@ resource "openstack_compute_instance_v2" "haproxy" {
       "sudo /tmp/update_haproxy_conf.sh",
     ]
     connection {
+      host        = "${self.access_ip_v4}"
       type        = "ssh"
       user        = "${var.ssh_user}"
       private_key = "${file(var.private_key)}"

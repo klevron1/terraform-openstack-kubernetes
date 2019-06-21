@@ -3,3 +3,4 @@ certificates/
 scripts/openrc.sh
 terraform.tfstate.backup
 terraform.tfstate
+files/hosts_entries.txt
